@@ -4383,6 +4383,12 @@ static void llm_load_vocab(
             } else if (
                     tokenizer_pre == "gpt-2") {
                 vocab.type_pre = LLAMA_VOCAB_PRE_TYPE_GPT2;
+            } else if (
+                    tokenizer_pre == "command-r") {
+                vocab.type_pre = LLAMA_VOCAB_PRE_TYPE_COMMAND_R;
+            } else if (
+                    tokenizer_pre == "command-r-plus") {
+                vocab.type_pre = LLAMA_VOCAB_PRE_TYPE_COMMAND_R_PLUS;
             } else {
                 throw std::runtime_error(format("unknown pre-tokenizer type: '%s'", tokenizer_pre.c_str()));
             }
@@ -12238,6 +12244,18 @@ struct llm_tokenizer_bpe {
                     case LLAMA_VOCAB_PRE_TYPE_GPT2:
                         word_collection = unicode_regex_split(text, {
                             "'s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| ?[^\\s\\p{L}\\p{N}]+|\\s+(?!\\S)",
+                        });
+                        break;
+                    case LLAMA_VOCAB_PRE_TYPE_COMMAND_R_PLUS:
+                    case LLAMA_VOCAB_PRE_TYPE_COMMAND_R:
+                        // Assuming we can use the gpt-2 splits, since HF has tokenizer.config has:
+                        // 'ByteLevel' tokenizer with `use_regex=True`. 
+                        // https://huggingface.co/docs/tokenizers/en/api/pre-tokenizers#tokenizers.pre_tokenizers.ByteLevel
+                        // according to that doc site, this forces gpt-2 pre-tokenization
+                        // also has 'Digits' and `individual_digits=True`, so making an assumption there now. 
+                        word_collection = unicode_regex_split(text, {
+                            "'s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| ?[^\\s\\p{L}\\p{N}]+|\\s+(?!\\S)",
+                            "\\d",
                         });
                         break;
                     default:
