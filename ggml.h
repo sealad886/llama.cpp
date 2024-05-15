@@ -565,7 +565,8 @@ extern "C" {
     // n-dimensional tensor
     struct ggml_tensor {
         enum ggml_type         type;
-        enum ggml_backend_type backend;
+
+        GGML_DEPRECATED(enum ggml_backend_type backend, "use the buffer type to find the storage location of the tensor");
 
         struct ggml_backend_buffer * buffer;
 
@@ -1674,11 +1675,23 @@ extern "C" {
             float                 p1);
 
     // nearest interpolate
+    // multiplies ne0 and ne1 by scale factor
     // used in stable-diffusion
     GGML_API struct ggml_tensor * ggml_upscale(
             struct ggml_context * ctx,
             struct ggml_tensor  * a,
             int                   scale_factor);
+
+    // nearest interpolate
+    // nearest interpolate to specified dimensions
+    // used in tortoise.cpp
+    GGML_API struct ggml_tensor * ggml_upscale_ext(
+            struct ggml_context * ctx,
+            struct ggml_tensor  * a,
+            int                   ne0,
+            int                   ne1,
+            int                   ne2,
+            int                   ne3);
 
     // pad each dimension with zeros: [x, ..., x] -> [x, ..., x, 0, ..., 0]
     GGML_API struct ggml_tensor * ggml_pad(
