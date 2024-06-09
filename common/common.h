@@ -203,6 +203,8 @@ struct gpt_params {
 
     std::string slot_save_path;
 
+    float slot_prompt_similarity = 0.5f;
+
     // batched-bench params
     bool is_pp_shared = false;
 
@@ -275,6 +277,7 @@ bool fs_validate_filename(const std::string & filename);
 bool fs_create_directory_with_parents(const std::string & path);
 
 std::string fs_get_cache_directory();
+std::string fs_get_cache_file(const std::string & filename);
 
 //
 // Model utils
