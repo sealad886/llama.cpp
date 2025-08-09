@@ -519,6 +519,7 @@ extern "C" {
 
         GGML_OP_FLASH_ATTN_EXT,
         GGML_OP_FLASH_ATTN_BACK,
+        GGML_OP_FLASH_ATTN_SLIDING_WINDOW,
         GGML_OP_SSM_CONV,
         GGML_OP_SSM_SCAN,
         GGML_OP_WIN_PART,
@@ -2076,6 +2077,22 @@ extern "C" {
             float                 scale,
             float                 max_bias,
             float                 logit_softcap);
+
+    // sliding window flash attention
+    // window_size: number of tokens in the sliding window (0 = no window, same as ggml_flash_attn_ext)
+    // q: [n_tokens, n_heads, head_dim]
+    // k: [n_kv, n_heads_kv, head_dim] 
+    // v: [n_kv, n_heads_kv, head_dim]
+    GGML_API struct ggml_tensor * ggml_flash_attn_sliding_window(
+            struct ggml_context * ctx,
+            struct ggml_tensor  * q,
+            struct ggml_tensor  * k,
+            struct ggml_tensor  * v,
+            struct ggml_tensor  * mask,
+            float                 scale,
+            float                 max_bias,
+            float                 logit_softcap,
+            uint32_t              window_size);
 
     GGML_API void ggml_flash_attn_ext_set_prec(
             struct ggml_tensor * a,
