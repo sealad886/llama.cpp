@@ -8497,7 +8497,7 @@ static void ggml_compute_forward_flash_attn_sliding_window_f16(
             }
 
             // sliding window logic: only attend to tokens within the window
-            const int64_t ik_start = window_size > 0 ? ggml_imax(0, iq + P + 1 - (int64_t)window_size) : 0;
+            const int64_t ik_start = window_size > 0 ? (iq + P + 1 - (int64_t)window_size > 0 ? iq + P + 1 - (int64_t)window_size : 0) : 0;
             const int64_t ik_end = iq + P + 1;
 
             // QK^T (sliding window version)

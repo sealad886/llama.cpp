@@ -991,6 +991,7 @@ static const char * GGML_OP_NAME[GGML_OP_COUNT] = {
 
     "FLASH_ATTN_EXT",
     "FLASH_ATTN_BACK",
+    "FLASH_ATTN_SLIDING_WINDOW",
     "SSM_CONV",
     "SSM_SCAN",
     "WIN_PART",
@@ -1016,7 +1017,7 @@ static const char * GGML_OP_NAME[GGML_OP_COUNT] = {
     "GLU",
 };
 
-static_assert(GGML_OP_COUNT == 87, "GGML_OP_COUNT != 87");
+static_assert(GGML_OP_COUNT == 88, "GGML_OP_COUNT != 88");
 
 static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
     "none",
@@ -1092,6 +1093,7 @@ static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
 
     "flash_attn_ext(x)",
     "flash_attn_back(x)",
+    "flash_attn_sliding_window(x)",
     "ssm_conv(x)",
     "ssm_scan(x)",
     "win_part(x)",
@@ -1117,7 +1119,7 @@ static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
     "glu(x)",
 };
 
-static_assert(GGML_OP_COUNT == 87, "GGML_OP_COUNT != 87");
+static_assert(GGML_OP_COUNT == 88, "GGML_OP_COUNT != 88");
 
 static_assert(GGML_OP_POOL_COUNT == 2, "GGML_OP_POOL_COUNT != 2");
 
@@ -4896,9 +4898,6 @@ struct ggml_tensor * ggml_flash_attn_sliding_window(
     result->src[1] = k;
     result->src[2] = v;
     result->src[3] = mask;
-
-    return result;
-}
 
     return result;
 }
