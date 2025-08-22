@@ -8421,6 +8421,141 @@ void ggml_compute_forward_flash_attn_ext(
     }
 }
 
+// ggml_compute_forward_flash_attn_sliding_window
+
+static void ggml_compute_forward_flash_attn_sliding_window_f16(
+        const ggml_compute_params * params,
+              ggml_tensor * dst) {
+
+    const ggml_tensor * q = dst->src[0];
+    const ggml_tensor * k = dst->src[1]; 
+    const ggml_tensor * v = dst->src[2];
+    const ggml_tensor * mask = dst->src[3];
+
+    GGML_TENSOR_LOCALS(int64_t, neq, q,   ne)
+    GGML_TENSOR_LOCALS(size_t,  nbq, q,   nb)
+    GGML_TENSOR_LOCALS(int64_t, nek, k,   ne)
+    GGML_TENSOR_LOCALS(size_t,  nbk, k,   nb)
+    GGML_TENSOR_LOCALS(int64_t, nev, v,   ne)
+    GGML_TENSOR_LOCALS(size_t,  nbv, v,   nb)
+    GGML_TENSOR_LOCALS(int64_t, ne,  dst, ne)
+    GGML_TENSOR_LOCALS(size_t,  nb,  dst, nb)
+
+    const int ith = params->ith;
+    const int nth = params->nth;
+
+    const int64_t D = neq0;
+    const int64_t N = neq1;
+    const int64_t P = nek1 - N;
+    const int64_t M = P + N;
+
+    const int Mup  = ggml_up(M, GGML_SOFT_MAX_UNROLL);
+    const int Mup4 = ggml_up(M, 4);
+
+    const float scale      = ((float *) dst->op_params)[0];
+    const float max_bias   = ((float *) dst->op_params)[1]; 
+    const float logit_softcap = ((float *) dst->op_params)[2];
+    const uint32_t window_size = (uint32_t)((float *) dst->op_params)[3];
+
+    const size_t elo = window_size > 0 ? (size_t)window_size : M;
+
+    // For simplicity, this implementation follows the same pattern as regular flash attention
+    // but applies sliding window logic in the attention computation loop
+    // A full optimization would restructure the loops to only process the sliding window
+
+    const int64_t ne_q_heads = neq2; 
+    const int64_t ne_k_heads = nek2;
+
+    const int64_t n_heads_q = ne_q_heads;
+    const int64_t n_heads_k = ne_k_heads;
+
+    GGML_ASSERT(n_heads_q % n_heads_k == 0);
+    const int64_t n_heads_gqa = n_heads_q / n_heads_k;
+    
+    // Same work allocation as regular flash attention for now
+    // Could be optimized to account for sliding window
+
+    char * wdata = (char *) params->wdata + 0;
+
+    for (int64_t iiq = 0; iiq < n_heads_q; iiq += n_heads_gqa) {
+        if (iiq*nth/n_heads_q > ith) {
+            continue;
+        }
+        if ((iiq + n_heads_gqa)*nth/n_heads_q <= ith) {
+            continue;
+        }
+
+        const int64_t iik = iiq / n_heads_gqa;
+
+        for (int64_t iq = 0; iq < N; iq++) {
+            float * S  = (float *) wdata;
+            float * SM = S + Mup;
+            float * M_q = SM + Mup;
+
+            for (int64_t ic = 0; ic < D; ic++) {
+                M_q[ic] = -INFINITY;
+            }
+
+            // sliding window logic: only attend to tokens within the window
+            const int64_t ik_start = window_size > 0 ? (iq + P + 1 - (int64_t)window_size > 0 ? iq + P + 1 - (int64_t)window_size : 0) : 0;
+            const int64_t ik_end = iq + P + 1;
+
+            // QK^T (sliding window version)
+            for (int64_t ik = ik_start; ik < ik_end; ik++) {
+                float s = 0.0f;
+
+                for (int64_t ic = 0; ic < D; ic++) {
+                    const float q_val = GGML_FP16_TO_FP32(((ggml_fp16_t *) ((char *) q->data + (iiq*nbq2 + iq*nbq1 + ic*nbq0)))[0]);
+                    const float k_val = GGML_FP16_TO_FP32(((ggml_fp16_t *) ((char *) k->data + (iik*nbk2 + ik*nbk1 + ic*nbk0)))[0]);
+                    s += q_val * k_val;
+                }
+
+                s *= scale;
+
+                if (mask) {
+                    s += ((float *) mask->data)[ik];
+                }
+
+                if (ik == ik_start || s > M_q[0]) {
+                    M_q[0] = s;
+                }
+
+                S[ik] = s;
+            }
+
+            // Softmax (only over sliding window)
+            float sum = 0.0f;
+            
+            for (int64_t ik = ik_start; ik < ik_end; ik++) {
+                float val = expf(S[ik] - M_q[0]);
+                sum += val;
+                SM[ik] = val;
+            }
+
+            // Attention output (sliding window version)
+            for (int64_t ic = 0; ic < D; ic++) {
+                float res = 0.0f;
+
+                for (int64_t ik = ik_start; ik < ik_end; ik++) {
+                    const float v_val = GGML_FP16_TO_FP32(((ggml_fp16_t *) ((char *) v->data + (iik*nbv2 + ik*nbv1 + ic*nbv0)))[0]);
+                    res += SM[ik] * v_val;
+                }
+
+                res /= sum;
+
+                ((float *) ((char *) dst->data + (iiq*nb2 + iq*nb1 + ic*nb0)))[0] = res;
+            }
+        }
+    }
+}
+
+void ggml_compute_forward_flash_attn_sliding_window(
+        const ggml_compute_params * params,
+        ggml_tensor * dst) {
+    // For now, only implement F16 version similar to regular flash attention
+    ggml_compute_forward_flash_attn_sliding_window_f16(params, dst);
+}
+
 // ggml_compute_forward_flash_attn_back
 
 static void ggml_compute_forward_flash_attn_back_f32(
